@@ -1,0 +1,9 @@
+{
+  "name": "love-2d-network-server",
+  "version": "1.0.0",
+  "author": "Josh Beard",
+  "license": "MIT",
+  "dependencies": {
+    "enet": "0.2.9"
+  }
+}
