@@ -14,16 +14,35 @@ enet.createServer({
     }
 
     host.on("connect", function(peer, data) {
-        console.log("Peer connected", peer, data);
+        console.log("Peer connected with ID " + peer._pointer);
 
         peer.on("message", function(packet, channel) {
-            console.log("Message Received", packet, channel);
+            console.log("Message received from " + peer._pointer);
 
-            const bufferText = JSON.stringify(packet.data().toString());
+            const now = new Date;
 
-            const messageText = "Got your packet with text: " + bufferText;
+            const utcTimestamp = Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate() , 
+                now.getUTCHours(),
+                now.getUTCMinutes(),
+                now.getUTCSeconds(), 
+                now.getUTCMilliseconds()
+            );
 
-            peer.send(0, messageText, function(err) {
+            const gameObject = JSON.parse(packet.data().toString());
+
+            const messageText = "Got packet from " + gameObject.client_id + " with message_type of " + gameObject.message_type + " at " + utcTimestamp;
+
+            const responseObject = {
+                response_time: utcTimestamp,
+                response_text: messageText
+            };
+
+            const jsonResponse = JSON.stringify(responseObject);
+
+            peer.send(0, jsonResponse, function(err) {
                 if (err) {
                     console.log("Error sending packet");
                 } else {
@@ -31,7 +50,7 @@ enet.createServer({
                 }
             });
 
-            console.log("received packet contents:", bufferText);
+            console.log("received packet contents:", packet.data().toString());
         });
     });
 
