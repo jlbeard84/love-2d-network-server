@@ -28,7 +28,8 @@ enet.createServer({
             peerId: peer._pointer,
             peer: peer, 
             x: 0,
-            y: 0
+            y: 0,
+            lastActivity: getUtcTimestamp()
         };
 
         for (const client of clients) {
@@ -68,8 +69,6 @@ enet.createServer({
             const clientId = gameObject.client_id;
             const messageType = gameObject.message_type;
 
-            let responseObject = {};
-
             if (messageType === "move") {
                 const xPos = gameObject.x;
                 const yPos = gameObject.y;
@@ -78,6 +77,7 @@ enet.createServer({
                     if (client.clientId === clientId) {
                         client.x = xPos;
                         client.y = yPos;
+                        lastActivity = getUtcTimestamp();
                     } else {
                         const positionUpdateObject = {
                             type: "peermove",
@@ -89,16 +89,27 @@ enet.createServer({
                         sendResponse(client.peer, positionUpdateObject, client.clientId);
                     }
                 }
+            } else if (messageType === "ping") {
+                for (const client of clients) {
+                    if (client.clientId === clientId) {
+                        client.lastActivity = getUtcTimestamp();
+                        break;
+                    }
+                }
+
+                sendResponse(peer, { type: "pong" }, clientId)
             } else {
                 const utcTimestamp = getUtcTimestamp();
+
+                let responseObject = {};
 
                 responseObject = {
                     response_time: utcTimestamp,
                     response_text: messageText
                 };
-            }
 
-            sendResponse(peer, responseObject, clientId);
+                sendResponse(peer, responseObject, clientId);
+            }
         });
 
         const clientResponse = {
@@ -113,6 +124,18 @@ enet.createServer({
     host.start(50);
     console.log("Server ready on %s:%s", host.address().address, host.address().port);
 });
+
+setInterval(() => {
+    let i = clients.length;
+
+    const currentTime = getUtcTimestamp();
+
+    while (i--) {
+        if (currentTime - clients[i].lastActivity >= 60000) {
+            clients.splice(i, 1);
+        }
+    }
+}, (1000));
 
 function sendResponse(peer, data, clientId) {
     const jsonResponse = JSON.stringify(data);
