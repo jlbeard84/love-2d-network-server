@@ -2,6 +2,8 @@ const enet = require("enet");
 
 const addr = new enet.Address("0.0.0.0", 9521);
 
+const clients = [];
+
 enet.createServer({
     address: addr,
     peers: 32,
@@ -14,46 +16,144 @@ enet.createServer({
     }
 
     host.on("connect", function(peer, data) {
-        console.log("Peer connected with ID " + peer._pointer);
+
+        const newClientId = generateClientId();
+
+        console.log(`Peer ${newClientId} connected`);
+
+        const connectedClients = [];
+
+        const newClient = {
+            clientId: newClientId,
+            peerId: peer._pointer,
+            peer: peer, 
+            x: 0,
+            y: 0
+        };
+
+        for (const client of clients) {
+            const connectedClient = {
+                client: client.clientId
+            };
+
+            connectedClient.x = client.x 
+                ? client.x
+                : 0;
+
+            connectedClient.y = client.y
+                ? client.y
+                : 0;
+
+            connectedClients.push(connectedClient);
+
+            const addNewClientObject = {
+                type: "addpeer",
+                clientId: newClient.clientId,
+                x: newClient.x,
+                y: newClient.y
+            };
+
+            sendResponse(client.peer, addNewClientObject, client.clientId);
+        }
+
+        clients.push(newClient);
 
         peer.on("message", function(packet, channel) {
             console.log("Message received from " + peer._pointer);
 
-            const now = new Date;
-
-            const utcTimestamp = Date.UTC(
-                now.getUTCFullYear(),
-                now.getUTCMonth(),
-                now.getUTCDate() , 
-                now.getUTCHours(),
-                now.getUTCMinutes(),
-                now.getUTCSeconds(), 
-                now.getUTCMilliseconds()
-            );
-
             const gameObject = JSON.parse(packet.data().toString());
 
-            const messageText = "Got packet from " + gameObject.client_id + " with message_type of " + gameObject.message_type + " at " + utcTimestamp;
+            const messageText = "Got packet from " + gameObject.client_id + " with message_type of " + gameObject.message_type;
 
-            const responseObject = {
-                response_time: utcTimestamp,
-                response_text: messageText
-            };
+            const clientId = gameObject.client_id;
+            const messageType = gameObject.message_type;
 
-            const jsonResponse = JSON.stringify(responseObject);
+            let responseObject = {};
 
-            peer.send(0, jsonResponse, function(err) {
-                if (err) {
-                    console.log("Error sending packet");
-                } else {
-                    console.log(`Message text: ${messageText} sent successfully`);
+            if (messageType === "move") {
+                const xPos = gameObject.x;
+                const yPos = gameObject.y;
+
+                for (const client of clients) {
+                    if (client.clientId === clientId) {
+                        client.x = xPos;
+                        client.y = yPos;
+                    } else {
+                        const positionUpdateObject = {
+                            type: "peermove",
+                            clientId: clientId,
+                            x: xPos,
+                            y: yPos
+                        };
+    
+                        sendResponse(client.peer, positionUpdateObject, client.clientId);
+                    }
                 }
-            });
+            } else {
+                const utcTimestamp = getUtcTimestamp();
 
-            console.log("received packet contents:", packet.data().toString());
+                responseObject = {
+                    response_time: utcTimestamp,
+                    response_text: messageText
+                };
+            }
+
+            sendResponse(peer, responseObject, clientId);
         });
+
+        const clientResponse = {
+            type: "connect",
+            clientId: newClientId,
+            peers: connectedClients
+        };
+
+        sendResponse(peer, clientResponse, newClientId);
     });
 
     host.start(50);
     console.log("Server ready on %s:%s", host.address().address, host.address().port);
 });
+
+function sendResponse(peer, data, clientId) {
+    const jsonResponse = JSON.stringify(data);
+
+    peer.send(0, jsonResponse, function(err) {
+        if (err) {
+            console.log("Error sending packet");
+        } else {
+            console.log(`Message sent successfully to ${clientId}`);
+        }
+    });
+}
+
+function getUtcTimestamp() {
+    const now = new Date;
+
+    const utcTimestamp = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() , 
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds(), 
+        now.getUTCMilliseconds()
+    );
+
+    return utcTimestamp;
+}
+
+function generateClientId () {
+
+    let start = "";
+    let end = "";
+
+    const utcTimestamp = getUtcTimestamp();    
+
+    // randomized start/end
+    for (let i = 0; i < 5; i++) {
+        start = `${start}${Math.floor((Math.random() * 9) + 1)}`;
+        end = `${end}${Math.floor((Math.random() * 9) + 1)}`;
+    }
+
+    return `${start}${utcTimestamp.toString()}${end}`;
+}
