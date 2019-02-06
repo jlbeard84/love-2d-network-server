@@ -29,7 +29,8 @@ enet.createServer({
             peer: peer, 
             x: 0,
             y: 0,
-            lastActivity: getUtcTimestamp()
+            lastActivity: getUtcTimestamp(),
+            legitAccount: false
         };
 
         for (const client of clients) {
@@ -63,7 +64,7 @@ enet.createServer({
             console.log("Message received from " + peer._pointer);
 
             const gameObject = JSON.parse(packet.data().toString());
-
+            console.log(gameObject);
             const messageText = "Got packet from " + gameObject.client_id + " with message_type of " + gameObject.message_type;
 
             const clientId = gameObject.client_id;
@@ -98,7 +99,56 @@ enet.createServer({
                 }
 
                 sendResponse(peer, { type: "pong" }, clientId)
-            } else {
+            } else if (messageType === "login") {
+                //console.log('test');
+                if (gameObject.data.player_username === "guest" && gameObject.data.password === "password"){
+                    const loginSucceededObject = {
+                        type: "login_response",
+                        clientId: clientId,
+                        value: "true"
+                    };
+                    peer.legitAccount = true;
+                    sendResponse(peer, loginSucceededObject, "");
+                    console.log(loginSucceededObject);
+                    lastActivity = getUtcTimestamp();
+                }
+            } else if (messageType === "request_map_list") {
+                if(peer.legitAccount){
+                    const mapListObject = {
+                        type: "map_list",
+                        clientId: clientId,
+                        value: "MAP01"
+                    };
+                    sendResponse(peer, mapListObject, "");
+                    console.log(mapListObject);
+                    lastActivity = getUtcTimestamp();
+                }
+            } 
+            else if (messageType === "request_character_data") {
+                if (peer.legitAccount) {
+                    // this will be pulled from a local database
+                    const tempPlayerDataObj = {
+                        type: "player_data",
+                        clientId: clientId,
+                        value: {
+                            name: 'Filius',
+                            sheet: 'assets/filius_sheet.png',
+                            level: 1,
+                            mhp: 30,
+                            mmp: 0,
+                            xp: 0,
+                            str: 10,
+                            agi: 5,
+                            int: 2,
+                            equipment: {}
+                        }
+                    };
+                    sendResponse(peer, tempPlayerDataObj, "");
+                    console.log(tempPlayerDataObj);
+                    lastActivity = getUtcTimestamp();
+                }
+            }
+            else {
                 const utcTimestamp = getUtcTimestamp();
 
                 let responseObject = {};
