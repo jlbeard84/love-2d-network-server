@@ -123,6 +123,30 @@ enet.createServer({
                     console.log(mapListObject);
                     lastActivity = getUtcTimestamp();
                 }
+            } 
+            else if (messageType === "request_character_data") {
+                if (peer.legitAccount) {
+                    // this will be pulled from a local database
+                    const tempPlayerDataObj = {
+                        type: "player_data",
+                        clientId: clientId,
+                        value: {
+                            name: 'Filius',
+                            sheet: 'assets/filius_sheet.png',
+                            level: 1,
+                            mhp: 30,
+                            mmp: 0,
+                            xp: 0,
+                            str: 10,
+                            agi: 5,
+                            int: 2,
+                            equipment: {}
+                        }
+                    };
+                    sendResponse(peer, tempPlayerDataObj, "");
+                    console.log(tempPlayerDataObj);
+                    lastActivity = getUtcTimestamp();
+                }
             }
             else {
                 const utcTimestamp = getUtcTimestamp();
